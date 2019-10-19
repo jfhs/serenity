@@ -3,9 +3,10 @@
 #include <LibHTML/DOM/Element.h>
 #include <LibHTML/Layout/LayoutBlock.h>
 #include <LibHTML/Layout/LayoutInline.h>
+#include <LibHTML/Layout/LayoutReplaced.h>
 
 LayoutBlock::LayoutBlock(const Node* node, NonnullRefPtr<StyleProperties> style)
-    : LayoutNodeWithStyle(node, move(style))
+    : LayoutBox(node, move(style))
 {
 }
 
@@ -17,6 +18,7 @@ LayoutNode& LayoutBlock::inline_wrapper()
 {
     if (!last_child() || !last_child()->is_block() || last_child()->node() != nullptr) {
         append_child(adopt(*new LayoutBlock(nullptr, style_for_anonymous_block())));
+        last_child()->set_children_are_inline(true);
     }
     return *last_child();
 }
@@ -39,8 +41,12 @@ void LayoutBlock::layout_block_children()
     ASSERT(!children_are_inline());
     int content_height = 0;
     for_each_child([&](auto& child) {
-        child.layout();
-        content_height = child.rect().bottom() + child.box_model().full_margin().bottom - rect().top();
+        // FIXME: What should we do here? Something like a <table> might have a bunch of useless text children..
+        if (child.is_inline())
+            return;
+        auto& child_block = static_cast<LayoutBlock&>(child);
+        child_block.layout();
+        content_height = child_block.rect().bottom() + child_block.box_model().full_margin().bottom - rect().top();
     });
     rect().set_height(content_height);
 }
@@ -54,21 +60,46 @@ void LayoutBlock::layout_inline_children()
         child.split_into_lines(*this);
     });
 
+    int min_line_height = style().line_height();
     int content_height = 0;
 
+    // FIXME: This should be done by the CSS parser!
+    CSS::ValueID text_align = CSS::ValueID::Left;
+    auto text_align_string = style().string_or_fallback(CSS::PropertyID::TextAlign, "left");
+    if (text_align_string == "center")
+        text_align = CSS::ValueID::Center;
+    else if (text_align_string == "left")
+        text_align = CSS::ValueID::Left;
+    else if (text_align_string == "right")
+        text_align = CSS::ValueID::Right;
+
     for (auto& line_box : m_line_boxes) {
-        int max_height = 0;
+        int max_height = min_line_height;
         for (auto& fragment : line_box.fragments()) {
             max_height = max(max_height, fragment.rect().height());
         }
+
+        int x_offset = x();
+        switch (text_align) {
+        case CSS::ValueID::Center:
+            x_offset += (width() - line_box.width()) / 2;
+            break;
+        case CSS::ValueID::Right:
+            x_offset += (width() - line_box.width());
+            break;
+        case CSS::ValueID::Left:
+        default:
+            break;
+        }
+
         for (auto& fragment : line_box.fragments()) {
             // Vertically align everyone's bottom to the line.
             // FIXME: Support other kinds of vertical alignment.
-            fragment.rect().set_x(rect().x() + fragment.rect().x());
-            fragment.rect().set_y(rect().y() + content_height + (max_height - fragment.rect().height()));
+            fragment.rect().set_x(x_offset + fragment.rect().x());
+            fragment.rect().set_y(y() + content_height + (max_height - fragment.rect().height()));
 
-            if (fragment.layout_node().is_replaced())
-                const_cast<LayoutNode&>(fragment.layout_node()).set_rect(fragment.rect());
+            if (is<LayoutReplaced>(fragment.layout_node()))
+                const_cast<LayoutReplaced&>(to<LayoutReplaced>(fragment.layout_node())).set_rect(fragment.rect());
         }
 
         content_height += max_height;
@@ -107,7 +138,7 @@ void LayoutBlock::compute_width()
 
     // 10.3.3 Block-level, non-replaced elements in normal flow
     // If 'width' is not 'auto' and 'border-left-width' + 'padding-left' + 'width' + 'padding-right' + 'border-right-width' (plus any of 'margin-left' or 'margin-right' that are not 'auto') is larger than the width of the containing block, then any 'auto' values for 'margin-left' or 'margin-right' are, for the following rules, treated as zero.
-    if (width.is_auto() && total_px > containing_block()->rect().width()) {
+    if (width.is_auto() && total_px > containing_block()->width()) {
         if (margin_left.is_auto())
             margin_left = zero_value;
         if (margin_right.is_auto())
@@ -115,7 +146,7 @@ void LayoutBlock::compute_width()
     }
 
     // 10.3.3 cont'd.
-    auto underflow_px = containing_block()->rect().width() - total_px;
+    auto underflow_px = containing_block()->width() - total_px;
 
     if (width.is_auto()) {
         if (margin_left.is_auto())
@@ -166,7 +197,7 @@ void LayoutBlock::compute_position()
     box_model().border().bottom = style.length_or_fallback(CSS::PropertyID::BorderBottomWidth, zero_value);
     box_model().padding().top = style.length_or_fallback(CSS::PropertyID::PaddingTop, zero_value);
     box_model().padding().bottom = style.length_or_fallback(CSS::PropertyID::PaddingBottom, zero_value);
-    rect().set_x(containing_block()->rect().x() + box_model().margin().left.to_px() + box_model().border().left.to_px() + box_model().padding().left.to_px());
+    rect().set_x(containing_block()->x() + box_model().margin().left.to_px() + box_model().border().left.to_px() + box_model().padding().left.to_px());
 
     int top_border = -1;
     if (previous_sibling() != nullptr) {
@@ -175,7 +206,7 @@ void LayoutBlock::compute_position()
         top_border = previous_sibling_rect.y() + previous_sibling_rect.height();
         top_border += previous_sibling_style.full_margin().bottom;
     } else {
-        top_border = containing_block()->rect().y();
+        top_border = containing_block()->y();
     }
     rect().set_y(top_border + box_model().full_margin().top);
 }
@@ -197,38 +228,23 @@ void LayoutBlock::render(RenderingContext& context)
     if (!is_visible())
         return;
 
-    LayoutNode::render(context);
-
-    // FIXME: position this properly
-    if (style().string_or_fallback(CSS::PropertyID::Display, "block") == "list-item") {
-        Rect bullet_rect {
-            rect().x() - 8,
-            rect().y() + 4,
-            3,
-            3
-        };
-
-        context.painter().fill_rect(bullet_rect, style().color_or_fallback(CSS::PropertyID::Color, document(), Color::Black));
-    }
+    LayoutBox::render(context);
 
     if (children_are_inline()) {
         for (auto& line_box : m_line_boxes) {
             for (auto& fragment : line_box.fragments()) {
+                if (context.should_show_line_box_borders())
+                    context.painter().draw_rect(fragment.rect(), Color::Green);
                 fragment.render(context);
             }
         }
     }
 }
 
-bool LayoutBlock::children_are_inline() const
-{
-    return first_child() && !first_child()->is_block();
-}
-
 HitTestResult LayoutBlock::hit_test(const Point& position) const
 {
     if (!children_are_inline())
-        return LayoutNode::hit_test(position);
+        return LayoutBox::hit_test(position);
 
     HitTestResult result;
     for (auto& line_box : m_line_boxes) {
@@ -251,4 +267,17 @@ NonnullRefPtr<StyleProperties> LayoutBlock::style_for_anonymous_block() const
     });
 
     return new_style;
+}
+
+LineBox& LayoutBlock::ensure_last_line_box()
+{
+    if (m_line_boxes.is_empty())
+        m_line_boxes.append(LineBox());
+    return m_line_boxes.last();
+}
+
+LineBox& LayoutBlock::add_line_box()
+{
+    m_line_boxes.append(LineBox());
+    return m_line_boxes.last();
 }

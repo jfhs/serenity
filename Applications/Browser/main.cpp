@@ -1,3 +1,4 @@
+#include "History.h"
 #include <LibCore/CFile.h>
 #include <LibGUI/GAboutDialog.h>
 #include <LibGUI/GAction.h>
@@ -14,6 +15,7 @@
 #include <LibHTML/Dump.h>
 #include <LibHTML/HtmlView.h>
 #include <LibHTML/Layout/LayoutBlock.h>
+#include <LibHTML/Layout/LayoutDocument.h>
 #include <LibHTML/Layout/LayoutInline.h>
 #include <LibHTML/Layout/LayoutNode.h>
 #include <LibHTML/Parser/CSSParser.h>
@@ -38,13 +40,34 @@ int main(int argc, char** argv)
     auto toolbar = GToolBar::construct(widget);
     auto html_widget = HtmlView::construct(widget);
 
-    toolbar->add_action(GCommonActions::make_go_back_action([&](auto&) {
-        // FIXME: Implement back action
-    }));
+    History<URL> history;
 
-    toolbar->add_action(GCommonActions::make_go_forward_action([&](auto&) {
-        // FIXME: Implement forward action
-    }));
+    RefPtr<GAction> go_back_action;
+    RefPtr<GAction> go_forward_action;
+
+    auto update_actions = [&]() {
+        go_back_action->set_enabled(history.can_go_back());
+        go_forward_action->set_enabled(history.can_go_forward());
+    };
+
+    bool should_push_loads_to_history = true;
+
+    go_back_action = GCommonActions::make_go_back_action([&](auto&) {
+        history.go_back();
+        update_actions();
+        TemporaryChange<bool> change(should_push_loads_to_history, false);
+        html_widget->load(history.current());
+    });
+
+    go_forward_action = GCommonActions::make_go_forward_action([&](auto&) {
+        history.go_forward();
+        update_actions();
+        TemporaryChange<bool> change(should_push_loads_to_history, false);
+        html_widget->load(history.current());
+    });
+
+    toolbar->add_action(*go_back_action);
+    toolbar->add_action(*go_forward_action);
 
     toolbar->add_action(GCommonActions::make_go_home_action([&](auto&) {
         html_widget->load(home_url);
@@ -62,6 +85,9 @@ int main(int argc, char** argv)
 
     html_widget->on_load_start = [&](auto& url) {
         location_box->set_text(url.to_string());
+        if (should_push_loads_to_history)
+            history.push(url);
+        update_actions();
     };
 
     html_widget->on_link_click = [&](auto& url) {
@@ -79,6 +105,10 @@ int main(int argc, char** argv)
 
     auto statusbar = GStatusBar::construct(widget);
 
+    html_widget->on_link_hover = [&](auto& href) {
+        statusbar->set_text(href);
+    };
+
     ResourceLoader::the().on_load_counter_change = [&] {
         if (ResourceLoader::the().pending_loads() == 0) {
             statusbar->set_text("");
@@ -94,6 +124,24 @@ int main(int argc, char** argv)
         app.quit();
     }));
     menubar->add_menu(move(app_menu));
+
+    auto debug_menu = make<GMenu>("Debug");
+    debug_menu->add_action(GAction::create("Dump DOM tree", [&](auto&) {
+        dump_tree(*html_widget->document());
+    }));
+    debug_menu->add_action(GAction::create("Dump Layout tree", [&](auto&) {
+        dump_tree(*html_widget->document()->layout_node());
+    }));
+    debug_menu->add_separator();
+    auto line_box_borders_action = GAction::create("Line box borders", [&](auto& action) {
+        action.set_checked(!action.is_checked());
+        html_widget->set_should_show_line_box_borders(action.is_checked());
+        html_widget->update();
+    });
+    line_box_borders_action->set_checkable(true);
+    line_box_borders_action->set_checked(false);
+    debug_menu->add_action(line_box_borders_action);
+    menubar->add_menu(move(debug_menu));
 
     auto help_menu = make<GMenu>("Help");
     help_menu->add_action(GAction::create("About", [&](const GAction&) {

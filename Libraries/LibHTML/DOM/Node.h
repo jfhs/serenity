@@ -10,6 +10,7 @@ enum class NodeType : unsigned {
     INVALID = 0,
     ELEMENT_NODE = 1,
     TEXT_NODE = 3,
+    COMMENT_NODE = 8,
     DOCUMENT_NODE = 9,
     DOCUMENT_TYPE_NODE = 10,
 };
@@ -32,10 +33,11 @@ public:
     bool is_text() const { return type() == NodeType::TEXT_NODE; }
     bool is_document() const { return type() == NodeType::DOCUMENT_NODE; }
     bool is_document_type() const { return type() == NodeType::DOCUMENT_TYPE_NODE; }
+    bool is_comment() const { return type() == NodeType::COMMENT_NODE; }
+    bool is_character_data() const { return type() == NodeType::TEXT_NODE || type() == NodeType::COMMENT_NODE; }
     bool is_parent_node() const { return is_element() || is_document(); }
 
-    virtual RefPtr<LayoutNode> create_layout_node(const StyleResolver&, const StyleProperties* parent_style) const;
-    RefPtr<LayoutNode> create_layout_tree(const StyleResolver&, const StyleProperties* parent_style) const;
+    virtual RefPtr<LayoutNode> create_layout_node(const StyleProperties* parent_style) const;
 
     virtual String tag_name() const = 0;
 
@@ -66,12 +68,22 @@ public:
     const Element* previous_element_sibling() const;
     const Element* next_element_sibling() const;
 
+    virtual bool is_child_allowed(const Node&) const { return true; }
+
+    bool needs_style_update() const { return m_needs_style_update; }
+    void set_needs_style_update(bool value) { m_needs_style_update = value; }
+
+    void invalidate_style();
+
+    bool is_link() const;
+
 protected:
     Node(Document&, NodeType);
 
     Document& m_document;
     mutable LayoutNode* m_layout_node { nullptr };
     NodeType m_type { NodeType::INVALID };
+    bool m_needs_style_update { false };
 };
 
 template<typename T>
@@ -83,7 +95,7 @@ inline bool is(const Node&)
 template<typename T>
 inline bool is(const Node* node)
 {
-    return node && is<T>(*node);
+    return !node || is<T>(*node);
 }
 
 template<>

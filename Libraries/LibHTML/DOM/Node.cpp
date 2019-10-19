@@ -19,44 +19,13 @@ Node::~Node()
 {
 }
 
-RefPtr<LayoutNode> Node::create_layout_tree(const StyleResolver& resolver, const StyleProperties* parent_style) const
-{
-    auto layout_node = create_layout_node(resolver, parent_style);
-    if (!layout_node)
-        return nullptr;
-
-    if (!has_children())
-        return layout_node;
-
-    Vector<RefPtr<LayoutNode>> layout_children;
-    bool have_inline_children = false;
-    bool have_block_children = false;
-
-    static_cast<const ParentNode&>(*this).for_each_child([&](const Node& child) {
-        auto layout_child = child.create_layout_tree(resolver, &layout_node->style());
-        if (!layout_child)
-            return;
-        if (!layout_child->is_block())
-            have_inline_children = true;
-        if (layout_child->is_block())
-            have_block_children = true;
-        layout_children.append(move(layout_child));
-    });
-
-    for (auto layout_child : layout_children)
-        if (have_block_children && have_inline_children && !layout_child->is_block()) {
-            if (layout_child->is_text() && static_cast<const LayoutText&>(*layout_child).text_for_style(*parent_style) == " ")
-                continue;
-            layout_node->inline_wrapper().append_child(*layout_child);
-        } else {
-            layout_node->append_child(*layout_child);
-        }
-    return layout_node;
-}
-
 const HTMLAnchorElement* Node::enclosing_link_element() const
 {
-    return first_ancestor_of_type<HTMLAnchorElement>();
+    for (auto* node = this; node; node = node->parent()) {
+        if (is<HTMLAnchorElement>(*node) && to<HTMLAnchorElement>(*node).has_attribute("href"))
+            return to<HTMLAnchorElement>(node);
+    }
+    return nullptr;
 }
 
 const HTMLElement* Node::enclosing_html_element() const
@@ -98,7 +67,24 @@ const Element* Node::previous_element_sibling() const
     return nullptr;
 }
 
-RefPtr<LayoutNode> Node::create_layout_node(const StyleResolver&, const StyleProperties*) const
+RefPtr<LayoutNode> Node::create_layout_node(const StyleProperties*) const
 {
     return nullptr;
+}
+
+void Node::invalidate_style()
+{
+    for_each_in_subtree([&](auto& node) {
+        if (is<Element>(node))
+            node.set_needs_style_update(true);
+    });
+    document().schedule_style_update();
+}
+
+bool Node::is_link() const
+{
+    auto* enclosing_link = enclosing_link_element();
+    if (!enclosing_link)
+        return false;
+    return enclosing_link->has_attribute("href");
 }

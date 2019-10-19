@@ -385,6 +385,16 @@ size_t mbstowcs(wchar_t*, const char*, size_t)
     ASSERT_NOT_REACHED();
 }
 
+size_t mbtowc(wchar_t*, const char*, size_t)
+{
+    ASSERT_NOT_REACHED();
+}
+
+int wctomb(char*, wchar_t)
+{
+    ASSERT_NOT_REACHED();
+}
+
 template<typename T, T min_value, T max_value>
 static T strtol_impl(const char* nptr, char** endptr, int base)
 {
@@ -495,3 +505,26 @@ unsigned long long strtoull(const char* str, char** endptr, int base)
     return value;
 }
 
+// Serenity's PRNG is not cryptographically secure. Do not rely on this for
+// any real crypto! These functions (for now) are for compatibility.
+// TODO: In the future, rand can be made determinstic and this not.
+uint32_t arc4random(void)
+{
+    char buf[4];
+    syscall(SC_getrandom, buf, 4, 0);
+    return *(uint32_t*)buf;
+}
+
+void arc4random_buf(void* buffer, size_t buffer_size)
+{
+    // arc4random_buf should never fail, but user supplied buffers could fail.
+    // However, if the user passes a garbage buffer, that's on them.
+    syscall(SC_getrandom, buffer, buffer_size, 0);
+}
+
+uint32_t arc4random_uniform(uint32_t max_bounds)
+{
+    // XXX: Should actually apply special rules for uniformity; avoid what is
+    // called "modulo bias".
+    return arc4random() % max_bounds;
+}

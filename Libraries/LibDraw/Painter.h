@@ -29,14 +29,14 @@ public:
     void draw_scaled_bitmap(const Rect& dst_rect, const GraphicsBitmap&, const Rect& src_rect);
     void blit(const Point&, const GraphicsBitmap&, const Rect& src_rect, float opacity = 1.0f);
     void blit_dimmed(const Point&, const GraphicsBitmap&, const Rect& src_rect);
-    void blit_tiled(const Point&, const GraphicsBitmap&, const Rect& src_rect);
+    void draw_tiled_bitmap(const Rect& dst_rect, const GraphicsBitmap&);
     void blit_offset(const Point&, const GraphicsBitmap&, const Rect& src_rect, const Point&);
     void blit_scaled(const Rect&, const GraphicsBitmap&, const Rect&, float, float);
     void draw_text(const Rect&, const StringView&, const Font&, TextAlignment = TextAlignment::TopLeft, Color = Color::Black, TextElision = TextElision::None);
     void draw_text(const Rect&, const StringView&, TextAlignment = TextAlignment::TopLeft, Color = Color::Black, TextElision = TextElision::None);
     void draw_glyph(const Point&, char, Color);
     void draw_glyph(const Point&, char, const Font&, Color);
-    void draw_emoji(const Point&, const Emoji&, const Font&);
+    void draw_emoji(const Point&, const GraphicsBitmap&, const Font&);
     void draw_glyph_or_emoji(const Point&, u32 codepoint, const Font&, Color);
 
     const Font& font() const { return *state().font; }

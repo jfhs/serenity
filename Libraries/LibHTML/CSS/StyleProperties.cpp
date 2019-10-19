@@ -1,5 +1,6 @@
 #include <LibCore/CDirIterator.h>
 #include <LibHTML/CSS/StyleProperties.h>
+#include <LibHTML/FontCache.h>
 #include <ctype.h>
 
 void StyleProperties::set_property(CSS::PropertyID id, NonnullRefPtr<StyleValue> value)
@@ -44,6 +45,11 @@ void StyleProperties::load_font() const
     auto font_family = string_or_fallback(CSS::PropertyID::FontFamily, "Katica");
     auto font_weight = string_or_fallback(CSS::PropertyID::FontWeight, "normal");
 
+    if (auto cached_font = FontCache::the().get({ font_family, font_weight })) {
+        m_font = cached_font;
+        return;
+    }
+
     String weight;
     if (font_weight == "lighter")
         weight = "Thin";
@@ -51,8 +57,10 @@ void StyleProperties::load_font() const
         weight = "";
     else if (font_weight == "bold")
         weight = "Bold";
-    else
-        ASSERT_NOT_REACHED();
+    else {
+        dbg() << "Unknown font-weight: " << font_weight;
+        weight = "";
+    }
 
     auto look_for_file = [](const StringView& expected_name) -> String {
         // TODO: handle font sizes properly?
@@ -90,4 +98,31 @@ void StyleProperties::load_font() const
 #endif
 
     m_font = Font::load_from_file(String::format("/res/fonts/%s", file_name.characters()));
+    FontCache::the().set({ font_family, font_weight }, *m_font);
+}
+
+int StyleProperties::line_height() const
+{
+    // FIXME: Allow overriding the line-height. We currently default to 140% which seems to look nice.
+    return (int)(font().glyph_height() * 1.4f);
+}
+
+bool StyleProperties::operator==(const StyleProperties& other) const
+{
+    if (m_property_values.size() != other.m_property_values.size())
+        return false;
+
+    for (auto& it : m_property_values) {
+        auto jt = other.m_property_values.find(it.key);
+        if (jt == other.m_property_values.end())
+            return false;
+        auto& my_value = *it.value;
+        auto& other_value = *jt->value;
+        if (my_value.type() != other_value.type())
+            return false;
+        if (my_value.to_string() != other_value.to_string())
+            return false;
+    }
+
+    return true;
 }

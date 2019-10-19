@@ -123,13 +123,12 @@ void LayoutText::split_into_lines(LayoutBlock& container)
 {
     auto& font = style().font();
     int space_width = font.glyph_width(' ') + font.glyph_spacing();
-    // FIXME: Allow overriding the line-height. We currently default to 140% which seems to look nice.
-    int line_height = (int)(font.glyph_height() * 1.4f);
+    int line_height = style().line_height();
 
     auto& line_boxes = container.line_boxes();
     if (line_boxes.is_empty())
         line_boxes.append(LineBox());
-    int available_width = container.rect().width() - line_boxes.last().width();
+    int available_width = container.width() - line_boxes.last().width();
 
     bool is_preformatted = style().string_or_fallback(CSS::PropertyID::WhiteSpace, "normal") == "pre";
     if (is_preformatted) {
@@ -142,16 +141,19 @@ void LayoutText::split_into_lines(LayoutBlock& container)
     }
 
     // Collapse whitespace into single spaces
-    auto& raw_text = node().data();
-    StringBuilder builder(raw_text.length());
-    for (int i = 0; i < raw_text.length(); ++i) {
-        if (!isspace(raw_text[i])) {
-            builder.append(raw_text[i]);
+    auto utf8_view = Utf8View(node().data());
+    StringBuilder builder(node().data().length());
+    for (auto it = utf8_view.begin(); it != utf8_view.end(); ++it) {
+        if (!isspace(*it)) {
+            builder.append(utf8_view.as_string().characters_without_null_termination() + utf8_view.byte_offset_of(it), it.codepoint_length_in_bytes());
         } else {
             builder.append(' ');
-            while (i < raw_text.length() && isspace(raw_text[i]))
-                ++i;
-            --i;
+            auto prev = it;
+            while (it != utf8_view.end() && isspace(*it)) {
+                prev = it;
+                ++it;
+            }
+            it = prev;
         }
     }
     m_text_for_rendering = builder.to_string();
@@ -178,9 +180,9 @@ void LayoutText::split_into_lines(LayoutBlock& container)
         else
             word_width = font.width(word.view) + font.glyph_spacing();
 
-        if (word_width > available_width) {
+        if (line_boxes.last().width() > 0 && word_width > available_width) {
             line_boxes.append(LineBox());
-            available_width = container.rect().width();
+            available_width = container.width();
         }
 
         if (is_whitespace && line_boxes.last().fragments().is_empty())
@@ -191,7 +193,7 @@ void LayoutText::split_into_lines(LayoutBlock& container)
 
         if (available_width < 0) {
             line_boxes.append(LineBox());
-            available_width = container.rect().width();
+            available_width = container.width();
         }
     }
 }

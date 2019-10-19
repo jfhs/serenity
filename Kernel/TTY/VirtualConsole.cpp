@@ -41,9 +41,9 @@ VirtualConsole::VirtualConsole(unsigned index, InitialContents initial_contents)
     : TTY(4, index)
     , m_index(index)
 {
-    m_tty_name = String::format("/dev/tty%u", m_index);
+    ksprintf(m_tty_name, "/dev/tty%u", m_index);
     set_size(80, 25);
-    m_horizontal_tabs = static_cast<u8*>(kmalloc(columns()));
+    m_horizontal_tabs = static_cast<u8*>(kmalloc_eternal(columns()));
     for (unsigned i = 0; i < columns(); ++i)
         m_horizontal_tabs[i] = (i % 8) == 0;
     // Rightmost column is always last tab on line.
@@ -63,8 +63,7 @@ VirtualConsole::VirtualConsole(unsigned index, InitialContents initial_contents)
 
 VirtualConsole::~VirtualConsole()
 {
-    kfree(m_horizontal_tabs);
-    m_horizontal_tabs = nullptr;
+    ASSERT_NOT_REACHED();
 }
 
 void VirtualConsole::clear()
@@ -541,7 +540,7 @@ ssize_t VirtualConsole::on_tty_write(const u8* data, ssize_t size)
     return size;
 }
 
-String VirtualConsole::tty_name() const
+StringView VirtualConsole::tty_name() const
 {
     return m_tty_name;
 }

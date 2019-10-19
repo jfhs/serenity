@@ -1,11 +1,11 @@
 #pragma once
 
-#include <LibHTML/Layout/LayoutNode.h>
+#include <LibHTML/Layout/LayoutBox.h>
 #include <LibHTML/Layout/LineBox.h>
 
 class Element;
 
-class LayoutBlock : public LayoutNodeWithStyle {
+class LayoutBlock : public LayoutBox {
 public:
     LayoutBlock(const Node*, NonnullRefPtr<StyleProperties>);
     virtual ~LayoutBlock() override;
@@ -17,12 +17,18 @@ public:
 
     virtual LayoutNode& inline_wrapper() override;
 
-    bool children_are_inline() const;
-
     Vector<LineBox>& line_boxes() { return m_line_boxes; }
     const Vector<LineBox>& line_boxes() const { return m_line_boxes; }
 
+    LineBox& ensure_last_line_box();
+    LineBox& add_line_box();
+
     virtual HitTestResult hit_test(const Point&) const override;
+
+    LayoutBlock* previous_sibling() { return to<LayoutBlock>(LayoutNode::previous_sibling()); }
+    const LayoutBlock* previous_sibling() const { return to<LayoutBlock>(LayoutNode::previous_sibling()); }
+    LayoutBlock* next_sibling() { return to<LayoutBlock>(LayoutNode::next_sibling()); }
+    const LayoutBlock* next_sibling() const { return to<LayoutBlock>(LayoutNode::next_sibling()); }
 
 private:
     virtual bool is_block() const override { return true; }
@@ -49,4 +55,10 @@ void LayoutNode::for_each_fragment_of_this(Callback callback)
                 return;
         }
     }
+}
+
+template<>
+inline bool is<LayoutBlock>(const LayoutNode& node)
+{
+    return node.is_block();
 }

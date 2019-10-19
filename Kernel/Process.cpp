@@ -8,6 +8,7 @@
 #include <Kernel/Arch/i386/CPU.h>
 #include <Kernel/Arch/i386/PIT.h>
 #include <Kernel/Devices/NullDevice.h>
+#include <Kernel/Devices/RandomDevice.h>
 #include <Kernel/FileSystem/Custody.h>
 #include <Kernel/FileSystem/DevPtsFS.h>
 #include <Kernel/FileSystem/Ext2FileSystem.h>
@@ -965,7 +966,8 @@ int Process::sys$ttyname_r(int fd, char* buffer, ssize_t size)
     auto tty_name = description->tty()->tty_name();
     if (size < tty_name.length() + 1)
         return -ERANGE;
-    strcpy(buffer, tty_name.characters());
+    memcpy(buffer, tty_name.characters_without_null_termination(), tty_name.length());
+    buffer[tty_name.length()] = '\0';
     return 0;
 }
 
@@ -3074,5 +3076,38 @@ int Process::sys$get_process_name(char* buffer, int buffer_size)
         return -ENAMETOOLONG;
 
     strncpy(buffer, m_name.characters(), buffer_size);
+    return 0;
+}
+
+// We don't use the flag yet, but we could use it for distinguishing
+// random source like Linux, unlike the OpenBSD equivalent. However, if we
+// do, we should be able of the caveats that Linux has dealt with.
+int Process::sys$getrandom(void* buffer, size_t buffer_size, unsigned int flags __attribute__((unused)))
+{
+    if (buffer_size <= 0)
+        return -EINVAL;
+
+    if (!validate_write(buffer, buffer_size))
+        return -EFAULT;
+
+    // We prefer to get whole words of entropy.
+    // If the length is unaligned, we can work with bytes instead.
+    // Mask out the bottom two bits for words.
+    size_t words_len = buffer_size & ~3;
+    if (words_len) {
+        uint32_t* words = (uint32_t*)buffer;
+        for (size_t i = 0; i < words_len / 4; i++)
+            words[i] = RandomDevice::random_value();
+    }
+    // The remaining non-whole word bytes we can fill in.
+    size_t bytes_len = buffer_size & 3;
+    if (bytes_len) {
+        uint8_t* bytes = (uint8_t*)buffer + words_len;
+        // Get a whole word of entropy to use.
+        uint32_t word = RandomDevice::random_value();
+        for (size_t i = 0; i < bytes_len; i++)
+            bytes[i] = ((uint8_t*)&word)[i];
+    }
+
     return 0;
 }

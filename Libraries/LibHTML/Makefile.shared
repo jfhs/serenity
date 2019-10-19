@@ -15,9 +15,13 @@ LIBHTML_OBJS = \
     DOM/HTMLImageElement.o \
     DOM/HTMLLinkElement.o \
     DOM/HTMLBlinkElement.o \
+    DOM/HTMLBRElement.o \
     DOM/Document.o \
+    DOM/CharacterData.o \
+    DOM/Comment.o \
     DOM/Text.o \
     DOM/DocumentType.o \
+    DOM/ElementFactory.o \
     CSS/Selector.o \
     CSS/StyleSheet.o \
     CSS/StyleRule.o \
@@ -30,15 +34,24 @@ LIBHTML_OBJS = \
     Parser/HTMLParser.o \
     Parser/CSSParser.o \
     Layout/LayoutNode.o \
+    Layout/LayoutBox.o \
     Layout/LayoutText.o \
     Layout/LayoutBlock.o \
     Layout/LayoutInline.o \
     Layout/LayoutDocument.o \
     Layout/LayoutReplaced.o \
     Layout/LayoutImage.o \
+    Layout/LayoutListItem.o \
+    Layout/LayoutListItemMarker.o \
+    Layout/LayoutBreak.o \
+    Layout/LayoutTable.o \
+    Layout/LayoutTableRow.o \
+    Layout/LayoutTableCell.o \
     Layout/BoxModelMetrics.o \
     Layout/LineBox.o \
     Layout/LineBoxFragment.o \
+    Layout/LayoutTreeBuilder.o \
+    FontCache.o \
     ResourceLoader.o \
     HtmlView.o \
     Frame.o \

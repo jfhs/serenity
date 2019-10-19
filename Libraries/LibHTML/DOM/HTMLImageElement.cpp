@@ -23,14 +23,19 @@ void HTMLImageElement::parse_attribute(const String& name, const String& value)
 void HTMLImageElement::load_image(const String& src)
 {
     URL src_url = document().complete_url(src);
-    ResourceLoader::the().load(src_url, [this](auto data) {
+    ResourceLoader::the().load(src_url, [this, weak_element = make_weak_ptr()](auto data) {
+        if (!weak_element) {
+            dbg() << "HTMLImageElement: Load completed after element destroyed.";
+            return;
+        }
         if (data.is_null()) {
             dbg() << "HTMLImageElement: Failed to load " << this->src();
             return;
         }
 
-        m_bitmap = load_png_from_memory(data.data(), data.size());
-        document().invalidate_layout();
+        m_image_data = data;
+        m_image_loader = ImageDecoder::create(m_image_data.data(), m_image_data.size());
+        document().update_layout();
     });
 }
 
@@ -41,8 +46,8 @@ int HTMLImageElement::preferred_width() const
     if (ok)
         return width;
 
-    if (m_bitmap)
-        return m_bitmap->width();
+    if (m_image_loader)
+        return m_image_loader->width();
 
     return 0;
 }
@@ -54,19 +59,16 @@ int HTMLImageElement::preferred_height() const
     if (ok)
         return height;
 
-    if (m_bitmap)
-        return m_bitmap->height();
+    if (m_image_loader)
+        return m_image_loader->height();
 
     return 0;
 }
 
-RefPtr<LayoutNode> HTMLImageElement::create_layout_node(const StyleResolver& resolver, const StyleProperties* parent_style) const
+RefPtr<LayoutNode> HTMLImageElement::create_layout_node(const StyleProperties* parent_style) const
 {
-    auto style = resolver.resolve_style(*this, parent_style);
-
-    auto display_property = style->property(CSS::PropertyID::Display);
-    String display = display_property.has_value() ? display_property.release_value()->to_string() : "inline";
-
+    auto style = document().style_resolver().resolve_style(*this, parent_style);
+    auto display = style->string_or_fallback(CSS::PropertyID::Display, "inline");
     if (display == "none")
         return nullptr;
     return adopt(*new LayoutImage(*this, move(style)));
@@ -74,5 +76,7 @@ RefPtr<LayoutNode> HTMLImageElement::create_layout_node(const StyleResolver& res
 
 const GraphicsBitmap* HTMLImageElement::bitmap() const
 {
-    return m_bitmap;
+    if (!m_image_loader)
+        return nullptr;
+    return m_image_loader->bitmap();
 }

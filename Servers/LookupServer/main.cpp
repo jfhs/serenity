@@ -16,6 +16,7 @@
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/time.h>
+#include <time.h>
 #include <unistd.h>
 
 #define T_A 1
@@ -27,6 +28,13 @@
 
 #define C_IN 1
 
+struct CachedLookup {
+    time_t timestamp { 0 };
+    unsigned short record_type { 0 };
+    Vector<String> responses;
+};
+
+static HashMap<String, CachedLookup> lookup_cache;
 static HashMap<String, String> dns_custom_hostnames;
 
 static Vector<String> lookup(const String& hostname, bool& did_timeout, const String& DNS_IP, unsigned short record_type);
@@ -154,12 +162,8 @@ int main(int argc, char** argv)
 
         Vector<String> responses;
 
-        for (auto& key : dns_custom_hostnames.keys()) {
-            dbgprintf("Known hostname: '%s'\n", key.characters());
-        }
         if (auto known_host = dns_custom_hostnames.get(hostname)) {
             responses.append(known_host.value());
-            dbg() << "LookupServer: Found preconfigured host (from /etc/hosts): " << known_host.value();
         } else if (!hostname.is_empty()) {
             bool did_timeout;
             int retries = 3;
@@ -207,6 +211,14 @@ static u16 get_next_id()
 
 Vector<String> lookup(const String& hostname, bool& did_timeout, const String& DNS_IP, unsigned short record_type)
 {
+    if (auto it = lookup_cache.find(hostname); it != lookup_cache.end()) {
+        auto& cached_lookup = it->value;
+        if (cached_lookup.record_type == record_type && cached_lookup.timestamp < (time(nullptr) + 60)) {
+            return it->value.responses;
+        }
+        lookup_cache.remove(it);
+    }
+
     DNSPacket request_header;
     request_header.set_id(get_next_id());
     request_header.set_is_query();
@@ -335,6 +347,7 @@ Vector<String> lookup(const String& hostname, bool& did_timeout, const String& D
         // FIXME: Parse some other record types perhaps?
     }
 
+    lookup_cache.set(hostname, { time(nullptr), record_type, addresses });
     return addresses;
 }
 

@@ -2,6 +2,9 @@
 
 #include <AK/String.h>
 #include <LibHTML/DOM/ParentNode.h>
+#include <LibHTML/Layout/LayoutNode.h>
+
+class LayoutNodeWithStyle;
 
 class Attribute {
 public:
@@ -28,6 +31,7 @@ public:
 
     virtual String tag_name() const final { return m_tag_name; }
 
+    bool has_attribute(const String& name) const { return !attribute(name).is_null(); }
     String attribute(const String& name) const;
     void set_attribute(const String& name, const String& value);
 
@@ -45,8 +49,13 @@ public:
     virtual void apply_presentational_hints(StyleProperties&) const {}
     virtual void parse_attribute(const String& name, const String& value);
 
+    void recompute_style();
+
+    LayoutNodeWithStyle* layout_node() { return static_cast<LayoutNodeWithStyle*>(Node::layout_node()); }
+    const LayoutNodeWithStyle* layout_node() const { return static_cast<const LayoutNodeWithStyle*>(Node::layout_node()); }
+
 private:
-    RefPtr<LayoutNode> create_layout_node(const StyleResolver&, const StyleProperties* parent_style) const override;
+    RefPtr<LayoutNode> create_layout_node(const StyleProperties* parent_style) const override;
 
     Attribute* find_attribute(const String& name);
     const Attribute* find_attribute(const String& name) const;

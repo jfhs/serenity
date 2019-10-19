@@ -47,6 +47,9 @@ private:
     KeyboardClient* m_client { nullptr };
     CircularQueue<Event, 16> m_queue;
     u8 m_modifiers { 0 };
+    bool m_caps_lock_on { false };
+    bool m_num_lock_on { false };
+    bool m_has_e0_prefix { false };
 };
 
 class KeyboardClient {

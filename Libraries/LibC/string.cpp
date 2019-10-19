@@ -334,7 +334,7 @@ char* strncat(char* dest, const char* src, size_t n)
     return dest;
 }
 
-const char* sys_errlist[] = {
+const char* const sys_errlist[] = {
     "Success (not an error)",
     "Operation not permitted",
     "No such file or directory",
@@ -457,9 +457,52 @@ char* strpbrk(const char* s, const char* accept)
 
 char* strtok(char* str, const char* delim)
 {
-    (void)str;
-    (void)delim;
-    ASSERT_NOT_REACHED();
+    static char* saved_str;
+    
+    if (!str) {
+        if (!saved_str)
+            return nullptr;
+        str = saved_str;
+    }
+    
+    size_t token_start = 0;
+    size_t token_end = 0;
+    size_t str_len = strlen(str);
+    size_t delim_len = strlen(delim);
+    
+    for (size_t i = 0; i < str_len; ++i) {
+        bool is_proper_delim = false;
+        
+        for (size_t j = 0; j < delim_len; ++j) {
+            if (str[i] == delim[j]) {
+                // Skip beginning delimiters
+                if (token_end - token_start == 0) {
+                    ++token_start;
+                    break;
+                }
+                
+                is_proper_delim = true;
+            }
+        }
+        
+        ++token_end;
+        if (is_proper_delim && token_end > 0) {
+            --token_end;
+            break;
+        }
+    }
+    
+    if (str[token_start] == '\0')
+        return nullptr;
+    
+    if (token_end == 0) {
+        saved_str = nullptr;
+        return &str[token_start];
+    }
+    
+    saved_str = &str[token_end + 1];
+    str[token_end] = '\0';
+    return &str[token_start];
 }
 
 int strcoll(const char* s1, const char* s2)

@@ -22,11 +22,11 @@ static char map[0x80] = {
     'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\n', 0,
     'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\'', '`', 0, '\\',
     'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/',
-    0, 0, 0, ' ', 0, 0,
+    0, '*', 0, ' ', 0, 0,
     //60
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     //70
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, '-', 0, 0, 0, '+', 0,
     //80
     0, 0, 0, 0, 0, 0, '\\', 0, 0, 0,
 };
@@ -36,14 +36,16 @@ static char shift_map[0x80] = {
     'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '{', '}', '\n', 0,
     'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', ':', '"', '~', 0, '|',
     'Z', 'X', 'C', 'V', 'B', 'N', 'M', '<', '>', '?',
-    0, 0, 0, ' ', 0, 0,
+    0, '*', 0, ' ', 0, 0,
     //60
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     //70
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, '-', 0, 0, 0, '+', 0,
     //80
     0, 0, 0, 0, 0, 0, '|', 0, 0, 0,
 };
+
+static char numpad_map[13] = { '7', '8', '9', 0, '4', '5', '6', 0, '1', '2', '3', '0', ',' };
 
 static KeyCode unshifted_key_map[0x80] = {
     Key_Invalid,
@@ -101,10 +103,10 @@ static KeyCode unshifted_key_map[0x80] = {
     Key_Period,
     Key_Slash,
     Key_RightShift, // 54
-    Key_Invalid,
+    Key_Asterisk,
     Key_Alt,     // 56
     Key_Space,   // 57
-    Key_Invalid, // 58
+    Key_CapsLock, // 58
     Key_F1,
     Key_F2,
     Key_F3,
@@ -115,16 +117,16 @@ static KeyCode unshifted_key_map[0x80] = {
     Key_F8,
     Key_F9,
     Key_F10,
-    Key_Invalid,
+    Key_NumLock,
     Key_Invalid, // 70
     Key_Home,
     Key_Up,
     Key_PageUp,
-    Key_Invalid,
+    Key_Minus,
     Key_Left,
     Key_Invalid,
     Key_Right, // 77
-    Key_Invalid,
+    Key_Plus,
     Key_End,
     Key_Down, // 80
     Key_PageDown,
@@ -196,10 +198,10 @@ static KeyCode shifted_key_map[0x100] = {
     Key_GreaterThan,
     Key_QuestionMark,
     Key_RightShift, // 54
-    Key_Invalid,
+    Key_Asterisk,
     Key_Alt,
     Key_Space,   // 57
-    Key_Invalid, // 58
+    Key_CapsLock, // 58
     Key_F1,
     Key_F2,
     Key_F3,
@@ -210,16 +212,16 @@ static KeyCode shifted_key_map[0x100] = {
     Key_F8,
     Key_F9,
     Key_F10,
-    Key_Invalid,
+    Key_NumLock,
     Key_Invalid, // 70
     Key_Home,
     Key_Up,
     Key_PageUp,
-    Key_Invalid,
+    Key_Minus,
     Key_Left,
     Key_Invalid,
     Key_Right, // 77
-    Key_Invalid,
+    Key_Plus,
     Key_End,
     Key_Down, // 80
     Key_PageDown,
@@ -235,17 +237,53 @@ static KeyCode shifted_key_map[0x100] = {
     Key_Logo,
 };
 
+static KeyCode numpad_key_map[13] = { Key_7, Key_8, Key_9, Key_Invalid, Key_4, Key_5, Key_6, Key_Invalid, Key_1, Key_2, Key_3, Key_0, Key_Comma };
+
 void KeyboardDevice::key_state_changed(u8 raw, bool pressed)
 {
+    KeyCode key = (m_modifiers & Mod_Shift) ? shifted_key_map[raw] : unshifted_key_map[raw];
+    char character = (m_modifiers & Mod_Shift) ? shift_map[raw] : map[raw];
+
+    if (key == Key_NumLock && pressed)
+        m_num_lock_on = !m_num_lock_on;
+
+    if (m_num_lock_on && !m_has_e0_prefix)
+    {
+        if (raw >= 0x47 && raw <= 0x53)
+        {
+            u8 index = raw - 0x47;
+            KeyCode newKey = numpad_key_map[index];
+
+            if (newKey != Key_Invalid)
+            {
+                key = newKey;
+                character = numpad_map[index];
+            }
+        }
+    }
+
+    if (key == Key_CapsLock && pressed)
+        m_caps_lock_on = !m_caps_lock_on;
+
+    if (m_caps_lock_on && (m_modifiers == 0 || m_modifiers == Mod_Shift))
+    {
+        if (character >= 'a' && character <= 'z')
+            character &= ~0x20;
+        else if (character >= 'A' && character <= 'Z')
+            character |= 0x20;
+    }
+
     Event event;
-    event.key = (m_modifiers & Mod_Shift) ? shifted_key_map[raw] : unshifted_key_map[raw];
-    event.character = (m_modifiers & Mod_Shift) ? shift_map[raw] : map[raw];
+    event.key = key;
+    event.character = static_cast<u8>(character);
     event.flags = m_modifiers;
     if (pressed)
         event.flags |= Is_Press;
     if (m_client)
         m_client->on_key_pressed(event);
     m_queue.enqueue(event);
+
+    m_has_e0_prefix = false;
 }
 
 void KeyboardDevice::handle_irq()
@@ -257,6 +295,11 @@ void KeyboardDevice::handle_irq()
         u8 raw = IO::in8(I8042_BUFFER);
         u8 ch = raw & 0x7f;
         bool pressed = !(raw & 0x80);
+
+        if (raw == 0xe0) {
+            m_has_e0_prefix = true;
+            return;
+        }
 
 #ifdef KEYBOARD_DEBUG
         dbgprintf("Keyboard::handle_irq: %b %s\n", ch, pressed ? "down" : "up");

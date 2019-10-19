@@ -13,6 +13,8 @@ __BEGIN_DECLS
 #define INFINITY (__builtin_inff ())
 #define isfinite(x) __builtin_isfinite (x)
 #define signbit(x) __builtin_signbit (x)
+#define M_LN2 0.69314718055995
+#define M_LN10 2.30258509299405
 
 double acos(double);
 float acosf(float);

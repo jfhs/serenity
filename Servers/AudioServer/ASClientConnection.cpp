@@ -68,6 +68,15 @@ OwnPtr<AudioServer::EnqueueBufferResponse> ASClientConnection::handle(const Audi
     if (m_queue->is_full())
         return make<AudioServer::EnqueueBufferResponse>(false);
 
-    m_queue->enqueue(ABuffer::create_with_shared_buffer(*shared_buffer));
+    m_queue->enqueue(ABuffer::create_with_shared_buffer(*shared_buffer, message.sample_count()));
     return make<AudioServer::EnqueueBufferResponse>(true);
+}
+
+OwnPtr<AudioServer::GetRemainingSamplesResponse> ASClientConnection::handle(const AudioServer::GetRemainingSamples&)
+{
+    int remaining = 0;
+    if(m_queue)
+        remaining = m_queue->get_remaining_samples();
+
+    return make<AudioServer::GetRemainingSamplesResponse>(remaining);
 }

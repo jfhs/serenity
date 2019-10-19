@@ -1,7 +1,7 @@
 #include <LibHTML/DOM/Element.h>
-#include <LibHTML/Layout/LayoutNode.h>
+#include <LibHTML/Layout/LayoutBox.h>
 
-class LayoutReplaced : public LayoutNodeWithStyle {
+class LayoutReplaced : public LayoutBox {
 public:
     LayoutReplaced(const Element&, NonnullRefPtr<StyleProperties>);
     virtual ~LayoutReplaced() override;
@@ -15,3 +15,9 @@ private:
 
     virtual void split_into_lines(LayoutBlock& container) override;
 };
+
+template<>
+inline bool is<LayoutReplaced>(const LayoutNode& node)
+{
+    return node.is_replaced();
+}

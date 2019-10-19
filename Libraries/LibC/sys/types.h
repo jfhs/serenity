@@ -1,11 +1,13 @@
 #pragma once
 
 #include <stddef.h>
-#include <stdint.h>
+#include <bits/stdint.h>
 #include <sys/cdefs.h>
 
 __BEGIN_DECLS
 
+typedef unsigned char u_char;
+typedef unsigned short u_short;
 typedef unsigned int u_int;
 typedef unsigned long u_long;
 

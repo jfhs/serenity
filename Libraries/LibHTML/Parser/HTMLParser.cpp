@@ -1,60 +1,14 @@
 #include <AK/Function.h>
 #include <AK/NonnullRefPtrVector.h>
 #include <AK/StringBuilder.h>
+#include <LibHTML/DOM/Comment.h>
 #include <LibHTML/DOM/DocumentType.h>
 #include <LibHTML/DOM/Element.h>
-#include <LibHTML/DOM/HTMLAnchorElement.h>
-#include <LibHTML/DOM/HTMLBlinkElement.h>
-#include <LibHTML/DOM/HTMLBodyElement.h>
-#include <LibHTML/DOM/HTMLFontElement.h>
-#include <LibHTML/DOM/HTMLHRElement.h>
-#include <LibHTML/DOM/HTMLHeadElement.h>
-#include <LibHTML/DOM/HTMLHeadingElement.h>
-#include <LibHTML/DOM/HTMLHtmlElement.h>
-#include <LibHTML/DOM/HTMLImageElement.h>
-#include <LibHTML/DOM/HTMLLinkElement.h>
-#include <LibHTML/DOM/HTMLStyleElement.h>
-#include <LibHTML/DOM/HTMLTitleElement.h>
+#include <LibHTML/DOM/ElementFactory.h>
 #include <LibHTML/DOM/Text.h>
 #include <LibHTML/Parser/HTMLParser.h>
 #include <ctype.h>
 #include <stdio.h>
-
-static NonnullRefPtr<Element> create_element(Document& document, const String& tag_name)
-{
-    auto lowercase_tag_name = tag_name.to_lowercase();
-    if (lowercase_tag_name == "a")
-        return adopt(*new HTMLAnchorElement(document, tag_name));
-    if (lowercase_tag_name == "html")
-        return adopt(*new HTMLHtmlElement(document, tag_name));
-    if (lowercase_tag_name == "head")
-        return adopt(*new HTMLHeadElement(document, tag_name));
-    if (lowercase_tag_name == "body")
-        return adopt(*new HTMLBodyElement(document, tag_name));
-    if (lowercase_tag_name == "font")
-        return adopt(*new HTMLFontElement(document, tag_name));
-    if (lowercase_tag_name == "hr")
-        return adopt(*new HTMLHRElement(document, tag_name));
-    if (lowercase_tag_name == "style")
-        return adopt(*new HTMLStyleElement(document, tag_name));
-    if (lowercase_tag_name == "title")
-        return adopt(*new HTMLTitleElement(document, tag_name));
-    if (lowercase_tag_name == "link")
-        return adopt(*new HTMLLinkElement(document, tag_name));
-    if (lowercase_tag_name == "img")
-        return adopt(*new HTMLImageElement(document, tag_name));
-    if (lowercase_tag_name == "blink")
-        return adopt(*new HTMLBlinkElement(document, tag_name));
-    if (lowercase_tag_name == "h1"
-        || lowercase_tag_name == "h2"
-        || lowercase_tag_name == "h3"
-        || lowercase_tag_name == "h4"
-        || lowercase_tag_name == "h5"
-        || lowercase_tag_name == "h6") {
-        return adopt(*new HTMLHeadingElement(document, tag_name));
-    }
-    return adopt(*new Element(document, tag_name));
-}
 
 static bool is_valid_in_attribute_name(char ch)
 {
@@ -91,6 +45,8 @@ NonnullRefPtr<Document> parse_html(const StringView& html, const URL& url)
         Free = 0,
         BeforeTagName,
         InTagName,
+        InDoctype,
+        InComment,
         InAttributeList,
         InAttributeName,
         BeforeAttributeValue,
@@ -148,19 +104,16 @@ NonnullRefPtr<Document> parse_html(const StringView& html, const URL& url)
             close_tag();
     };
 
-    auto handle_exclamation_tag = [&] {
-        auto name = String::copy(tag_name_buffer);
-        tag_name_buffer.clear();
-        ASSERT(name == "DOCTYPE");
-        if (node_stack.size() != 1)
-            node_stack[node_stack.size() - 2].append_child(adopt(*new DocumentType(document)), false);
-        close_tag();
+    auto commit_doctype = [&] {
+        node_stack.last().append_child(adopt(*new DocumentType(document)), false);
+    };
+
+    auto commit_comment = [&] {
+        node_stack.last().append_child(adopt(*new Comment(document, text_buffer.to_string())), false);
     };
 
     auto commit_tag = [&] {
-        if (is_exclamation_tag)
-            handle_exclamation_tag();
-        else if (is_slash_tag)
+        if (is_slash_tag)
             close_tag();
         else
             open_tag();
@@ -171,12 +124,16 @@ NonnullRefPtr<Document> parse_html(const StringView& html, const URL& url)
     };
 
     for (int i = 0; i < html.length(); ++i) {
+        auto peek = [&](int offset) -> char {
+            if (i + offset >= html.length())
+                return '\0';
+            return html[i + offset];
+        };
         char ch = html[i];
         switch (state) {
         case State::Free:
             if (ch == '<') {
                 is_slash_tag = false;
-                is_exclamation_tag = false;
                 move_to_state(State::BeforeTagName);
                 break;
             }
@@ -212,7 +169,22 @@ NonnullRefPtr<Document> parse_html(const StringView& html, const URL& url)
                 break;
             }
             if (ch == '!') {
-                is_exclamation_tag = true;
+                if (peek(1) == 'D'
+                    && peek(2) == 'O'
+                    && peek(3) == 'C'
+                    && peek(4) == 'T'
+                    && peek(5) == 'Y'
+                    && peek(6) == 'P'
+                    && peek(7) == 'E') {
+                    i += 7;
+                    move_to_state(State::InDoctype);
+                    break;
+                }
+                if (peek(1) == '-' && peek(2) == '-') {
+                    i += 2;
+                    move_to_state(State::InComment);
+                    break;
+                }
                 break;
             }
             if (ch == '>') {
@@ -234,6 +206,22 @@ NonnullRefPtr<Document> parse_html(const StringView& html, const URL& url)
                 break;
             }
             tag_name_buffer.append(ch);
+            break;
+        case State::InDoctype:
+            if (ch == '>') {
+                commit_doctype();
+                move_to_state(State::Free);
+                break;
+            }
+            break;
+        case State::InComment:
+            if (ch == '-' && peek(1) == '-' && peek(2) == '>') {
+                commit_comment();
+                i += 2;
+                move_to_state(State::Free);
+                break;
+            }
+            text_buffer.append(ch);
             break;
         case State::InAttributeList:
             if (ch == '>') {
@@ -329,9 +317,7 @@ NonnullRefPtr<Document> parse_html(const StringView& html, const URL& url)
             node.inserted_into(*node.parent());
     };
 
-    fire_insertion_callbacks(*document);
-
     document->fixup();
-
+    fire_insertion_callbacks(*document);
     return document;
 }

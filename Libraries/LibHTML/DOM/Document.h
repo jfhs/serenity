@@ -10,10 +10,12 @@
 #include <LibHTML/CSS/StyleSheet.h>
 #include <LibHTML/DOM/ParentNode.h>
 
+class CTimer;
 class Frame;
 class HTMLBodyElement;
 class HTMLHtmlElement;
 class HTMLHeadElement;
+class LayoutDocument;
 class LayoutNode;
 class StyleResolver;
 class StyleSheet;
@@ -30,14 +32,15 @@ public:
 
     void fixup();
 
-    StyleResolver& style_resolver();
+    StyleResolver& style_resolver() { return *m_style_resolver; }
+    const StyleResolver& style_resolver() const { return *m_style_resolver; }
 
     void add_sheet(const StyleSheet& sheet) { m_sheets.append(sheet); }
     const NonnullRefPtrVector<StyleSheet>& stylesheets() const { return m_sheets; }
 
     virtual String tag_name() const override { return "#document"; }
 
-    void set_hovered_node(Node* node) { m_hovered_node = node; }
+    void set_hovered_node(Node*);
     Node* hovered_node() { return m_hovered_node; }
     const Node* hovered_node() const { return m_hovered_node; }
 
@@ -54,6 +57,7 @@ public:
     const Frame* frame() const { return m_frame.ptr(); }
 
     Color background_color() const;
+    RefPtr<GraphicsBitmap> background_image() const;
 
     Color link_color() const { return m_link_color; }
     void set_link_color(Color);
@@ -64,11 +68,20 @@ public:
     Color visited_link_color() const { return m_visited_link_color; }
     void set_visited_link_color(Color);
 
-    void invalidate_layout();
-    Function<void()> on_invalidate_layout;
+    void layout();
+
+    void update_style();
+    void update_layout();
+    Function<void()> on_layout_updated;
+
+    virtual bool is_child_allowed(const Node&) const override;
+
+    const LayoutDocument* layout_node() const;
+
+    void schedule_style_update();
 
 private:
-    virtual RefPtr<LayoutNode> create_layout_node(const StyleResolver&, const StyleProperties* parent_style) const override;
+    virtual RefPtr<LayoutNode> create_layout_node(const StyleProperties* parent_style) const override;
 
     OwnPtr<StyleResolver> m_style_resolver;
     NonnullRefPtrVector<StyleSheet> m_sheets;
@@ -76,9 +89,13 @@ private:
     WeakPtr<Frame> m_frame;
     URL m_url;
 
+    RefPtr<LayoutDocument> m_layout_root;
+
     Color m_link_color { Color::Blue };
     Color m_active_link_color { Color::Red };
     Color m_visited_link_color { Color::Magenta };
+
+    RefPtr<CTimer> m_style_update_timer;
 };
 
 template<>

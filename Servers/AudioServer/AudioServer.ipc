@@ -8,5 +8,7 @@ endpoint AudioServer
     SetMainMixVolume(i32 volume) => ()
 
     // Buffer playback
-    EnqueueBuffer(i32 buffer_id) => (bool success)
+    EnqueueBuffer(i32 buffer_id, int sample_count) => (bool success)
+
+    GetRemainingSamples() => (int remaining_samples)
 }

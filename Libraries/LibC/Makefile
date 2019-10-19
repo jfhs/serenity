@@ -55,6 +55,8 @@ LIBC_OBJS = \
        libgen.o \
        fenv.o \
        pthread.o
+       wchar.o \
+       syslog.o
 
 ASM_OBJS = setjmp.ao crti.ao crtn.ao
 

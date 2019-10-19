@@ -1,6 +1,7 @@
 #include "Assertions.h"
 #include "IRQHandler.h"
 #include "PIC.h"
+#include "APIC.h"
 #include "Process.h"
 #include "Scheduler.h"
 #include <AK/Types.h>
@@ -221,6 +222,8 @@ void exception_7_handler(RegisterDump& regs)
         asm volatile("fxrstor %0" ::"m"(current->fpu_state()));
     } else {
         asm volatile("fninit");
+        asm volatile("fxsave %0"
+                     : "=m"(current->fpu_state()));
         current->set_has_used_fpu(true);
     }
 

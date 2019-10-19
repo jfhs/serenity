@@ -45,6 +45,8 @@ char* mktemp(char*);
 char* mkdtemp(char*);
 void* bsearch(const void* key, const void* base, size_t nmemb, size_t size, int (*compar)(const void*, const void*));
 size_t mbstowcs(wchar_t*, const char*, size_t);
+size_t mbtowc(wchar_t*, const char*, size_t);
+int wctomb(char*, wchar_t);
 
 #define RAND_MAX 32767
 int rand();
@@ -52,6 +54,10 @@ void srand(unsigned seed);
 
 long int random();
 void srandom(unsigned seed);
+
+uint32_t arc4random(void);
+void arc4random_buf(void*, size_t);
+uint32_t arc4random_uniform(uint32_t);
 
 typedef struct {
     int quot;
