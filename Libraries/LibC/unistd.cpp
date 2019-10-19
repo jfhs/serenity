@@ -614,4 +614,13 @@ int get_process_name(char* buffer, int buffer_size)
     __RETURN_WITH_ERRNO(rc, rc, -1);
 }
 
+long sysconf(int name) {
+    // todo: implement properly
+    switch(name) {
+        case _SC_OPEN_MAX: return 256;
+    }
+    return -1;
+}
+
+
 }

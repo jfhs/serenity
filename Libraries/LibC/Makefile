@@ -52,7 +52,9 @@ LIBC_OBJS = \
        netdb.o \
        sched.o \
        dlfcn.o \
-       libgen.o
+       libgen.o \
+       fenv.o \
+       pthread.o
 
 ASM_OBJS = setjmp.ao crti.ao crtn.ao
 

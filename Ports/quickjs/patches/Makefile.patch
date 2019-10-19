@@ -1,0 +1,45 @@
+diff --git a/Makefile b/Makefile
+index 377043c..d26b54a 100644
+--- a/Makefile
++++ b/Makefile
+@@ -54,8 +54,13 @@ ifdef CONFIG_WIN32
+   CROSS_PREFIX=i686-w64-mingw32-
+   EXE=.exe
+ else
+-  CROSS_PREFIX=
+-  EXE=
++  ifdef CONFIG_SERENITY
++    CROSS_PREFIX=i686-pc-serenity-
++    EXE=
++  else
++    CROSS_PREFIX=
++    EXE=
++  endif
+ endif
+ ifdef CONFIG_CLANG
+   HOST_CC=clang
+@@ -116,10 +121,12 @@ endif
+ ifdef CONFIG_WIN32
+ LDEXPORT=
+ else
++ifndef CONFIG_SERENITY
+ LDEXPORT=-rdynamic
+ endif
++endif
+ 
+-PROGS=qjs$(EXE) qjsbn$(EXE) qjsc$(EXE) qjsbnc$(EXE) run-test262 run-test262-bn
++PROGS=qjs$(EXE) qjsbn$(EXE) qjsc$(EXE) qjsbnc$(EXE)
+ ifneq ($(CROSS_PREFIX),)
+ QJSC_CC=gcc
+ QJSC=./host-qjsc
+@@ -162,8 +169,10 @@ QJSBN_OBJS=$(OBJDIR)/qjs.bn.o $(OBJDIR)/repl-bn.bn.o $(OBJDIR)/qjscalc.bn.o $(QJ
+ 
+ LIBS=-lm
+ ifndef CONFIG_WIN32
++ifndef CONFIG_SERENITY
+ LIBS+=-ldl
+ endif
++endif
+ 
+ $(OBJDIR):
+ 	mkdir -p $(OBJDIR)

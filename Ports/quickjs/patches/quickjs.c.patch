@@ -1,0 +1,12 @@
+diff --git a/quickjs.c b/quickjs.c
+index 5d833b0..5791ec8 100644
+--- a/quickjs.c
++++ b/quickjs.c
+@@ -37,6 +37,7 @@
+ #elif defined(__linux__)
+ #include <malloc.h>
+ #endif
++#include <alloca.h>
+ 
+ #include "cutils.h"
+ #include "list.h"

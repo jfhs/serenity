@@ -203,6 +203,27 @@ void* malloc(size_t size)
     return ptr;
 }
 
+size_t malloc_usable_size (const void *ptr) {
+    if (ptr == NULL) {
+        return 0;
+    }
+
+    LOCKER(malloc_lock());
+
+    void* page_base = (void*)((uintptr_t)ptr & (uintptr_t)~0xfff);
+    size_t magic = *(size_t*)page_base;
+
+    if (magic == MAGIC_BIGALLOC_HEADER) {
+        auto* block = (BigAllocationBlock*)page_base;
+        return block->m_size;
+    }
+
+    assert(magic == MAGIC_PAGE_HEADER);
+    auto* block = (ChunkedBlock*)page_base;
+
+    return  block->m_size;
+}
+
 void free(void* ptr)
 {
     ScopedValueRollback rollback(errno);

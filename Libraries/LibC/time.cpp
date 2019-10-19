@@ -4,6 +4,7 @@
 #include <sys/time.h>
 #include <sys/times.h>
 #include <time.h>
+#include <unistd.h>
 
 extern "C" {
 
@@ -85,6 +86,14 @@ struct tm* localtime(const time_t* t)
     return &tm_buf;
 }
 
+struct tm* localtime_r(const time_t* t, struct tm *result)
+{
+    if (!t)
+        return nullptr;
+    time_to_tm(result, *t);
+    return result;
+}
+
 struct tm* gmtime(const time_t* t)
 {
     // FIXME: This is obviously not correct. What about timezones bro?
@@ -117,4 +126,61 @@ clock_t clock()
     times(&tms);
     return tms.tms_utime + tms.tms_stime;
 }
+
+int nanosleep(const struct timespec *req, struct timespec *rem)
+{
+    // TODO: implement rem
+    (void)(rem);
+    return usleep(req->tv_sec);
+}
+
+int clock_getres(clockid_t clk_id, struct timespec *res)
+{
+    int rc = 0;
+    if (!res) {
+        rc = EFAULT;
+        __RETURN_WITH_ERRNO(rc, rc, -1);
+    }
+    switch(clk_id) {
+        case CLOCK_REALTIME:
+        {
+            res->tv_sec = 1;
+            res->tv_nsec = 0;
+            return 0;
+        }
+        default:
+        {
+            rc = EINVAL;
+        }
+    }
+    __RETURN_WITH_ERRNO(rc, rc, -1);
+}
+
+int clock_gettime(clockid_t clk_id, struct timespec *tp)
+{
+    int rc = 0;
+    if (!tp) {
+        rc = EFAULT;
+        __RETURN_WITH_ERRNO(rc, rc, -1);
+    }
+    switch(clk_id) {
+        case CLOCK_REALTIME: 
+        {
+            tp->tv_sec = time(nullptr);
+            tp->tv_nsec = 0;
+            return 0;
+        }
+        default:
+        {
+            rc = EINVAL;
+        }
+    }
+    __RETURN_WITH_ERRNO(rc, rc, -1);
+}
+
+int clock_settime(clockid_t, const struct timespec* )
+{
+    ASSERT_NOT_REACHED();
+}
+
 }

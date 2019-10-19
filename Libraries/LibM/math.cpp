@@ -12,10 +12,6 @@ template<> constexpr size_t factorial<0>() { return 1; }
 template<size_t value> constexpr size_t factorial() { return value * factorial<value - 1>(); }
 
 extern "C" {
-double trunc(double x)
-{
-    return (int64_t)x;
-}
 
 double cos(double angle)
 {
@@ -210,6 +206,93 @@ long double frexpl(long double, int*)
 {
     ASSERT_NOT_REACHED();
     return 0;
+}
+
+int isnan(double x) 
+{ 
+    // todo: does this work? is it efficient?
+    return x != x;
+}
+
+double trunc(double x)
+{
+    return __builtin_trunc(x);
+}
+
+float truncf(float x)
+{
+    return __builtin_truncf(x);
+}
+
+long int lrint(double x)
+{
+    return __builtin_lrint(x);
+}
+
+double fmin(double a, double b) {
+    return __builtin_fmin(a, b);
+}
+
+double fmax(double a, double b) {
+    return __builtin_fmax(a, b);
+}
+
+double hypot(double a, double b) {
+    return __builtin_hypot(a, b);
+}
+
+double acosh(double a) {
+    return __builtin_acosh(a);
+}
+
+double asinh(double a) {
+    return __builtin_asinh(a);
+}
+
+double atanh(double a) {
+    return __builtin_atanh(a);
+}
+
+double expm1(double a) {
+    return __builtin_expm1(a);
+}
+
+double log1p(double x) {
+    return __builtin_log1p(x);
+}
+
+double cbrt(double x) {
+    return __builtin_cbrt(x);
+}
+
+double floor(double x)
+{
+    return __builtin_floor(x);
+}
+
+float floorf(float x)
+{
+    return __builtin_floorf(x);
+}
+
+double ceil(double x) 
+{
+    return __builtin_ceil(x);
+}
+
+float ceilf(float x)
+{
+    return __builtin_ceilf(x);
+}
+
+double round(double x)
+{
+    return __builtin_round(x);
+}
+
+float roundf(float x)
+{
+    return __builtin_roundf(x);
 }
 
 }

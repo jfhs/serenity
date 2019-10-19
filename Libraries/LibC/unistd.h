@@ -14,6 +14,8 @@
 
 __BEGIN_DECLS
 
+#include <confname.h>
+
 #define HZ 1000
 #define STDIN_FILENO 0
 #define STDOUT_FILENO 1
@@ -120,11 +122,7 @@ int reboot();
 int mount(const char* device, const char* mountpoint, const char* fstype);
 int umount(const char* mountpoint);
 char* realpath(const char* pathname, char* buffer);
-
-enum {
-    _PC_NAME_MAX,
-    _PC_PATH_MAX,
-};
+long sysconf(int name);
 
 #define HOST_NAME_MAX 64
 
@@ -138,5 +136,7 @@ enum {
  * range of values), but we do have process priorities.
  */
 #define _POSIX_PRIORITY_SCHEDULING
+
+# include <getopt.h>
 
 __END_DECLS
